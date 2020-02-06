@@ -7,6 +7,11 @@ use App\Form\UserEditType;
 use App\Form\UserLoginType;
 use App\Form\UserRegisterType;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\Form\Extension\Core\Type\EmailType;
+use Symfony\Component\Form\Extension\Core\Type\PasswordType;
+use Symfony\Component\Form\Extension\Core\Type\RepeatedType;
+use Symfony\Component\Form\Extension\Core\Type\SubmitType;
+use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Session\SessionInterface;
 use Symfony\Component\Routing\Annotation\Route;
@@ -41,8 +46,8 @@ class UserController extends AbstractController
                                    ->getRepository('App:User');
 
 
-            $user = new User();
-            $plainPassword = $userLoginData->getPassword();
+            $user            = new User();
+            $plainPassword   = $userLoginData->getPassword();
             $encodedPassword = $encoder->encodePassword($user, $plainPassword);
 
             $user = $userRepository->findOneBy(
@@ -62,48 +67,18 @@ class UserController extends AbstractController
         }
 
         return $this->render('user/login.html.twig', [
-            'form' => $form->createView(),
-            'logged_in' => $this->session->has('logged_in_user')
+            'form'      => $form->createView(),
+            'logged_in' => $this->session->has('logged_in_user'),
         ]);
     }
 
     /**
-     * @Route("/user/edit", methods={"GET"}, name="user_edit")
+     * @Route("/user/edit", name="user_edit")
      * @param Request                      $request
-     * @param ValidatorInterface           $validator
      * @param UserPasswordEncoderInterface $encoder
      * @return \Symfony\Component\HttpFoundation\Response
      */
-    public function edit(Request $request)
-    {
-        $userId         = $this->session->get('logged_in_user');
-        $userRepository = $this->getDoctrine()
-                               ->getManager()
-                               ->getRepository('App:User');
-        $user = $userRepository->find($userId);
-
-        $form = $this->createForm(UserEditType::class, $user);
-        $form->handleRequest($request);
-
-        $errors = null;
-
-
-        return $this->render('user/edit.html.twig', [
-            'controller_name' => 'UserController',
-            'user'            => $user,
-            'form'            => $form->createView(),
-            'error'           => $errors,
-        ]);
-    }
-
-    /**
-     * @Route("/user/edit", methods={"POST"}, name="user_update")
-     * @param Request                      $request
-     * @param ValidatorInterface           $validator
-     * @param UserPasswordEncoderInterface $encoder
-     * @return \Symfony\Component\HttpFoundation\Response
-     */
-    public function update(Request $request, ValidatorInterface $validator, UserPasswordEncoderInterface $encoder)
+    public function edit(Request $request, UserPasswordEncoderInterface $encoder)
     {
         $userId         = $this->session->get('logged_in_user');
         $userRepository = $this->getDoctrine()
@@ -111,51 +86,61 @@ class UserController extends AbstractController
                                ->getRepository('App:User');
         $user           = $userRepository->find($userId);
 
-
-        $currentEncodedPassword = $request->get('user_edit')['password'] ?? '';
-        $isCurrentPasswordValid = $encoder->isPasswordValid($user, $currentEncodedPassword);
-
-        if ($isCurrentPasswordValid === false) {
-            $this->addFlash(
-                'error',
-                'Current password is wrong!'
-            );
-            return $this->redirectToRoute('user_edit');
-        }
-
-        $form = $this->createForm(UserEditType::class, $user);
+        $defaultData = ['name' => $user->getName(), 'email' => $user->getEmail()];
+        $form        = $this->createFormBuilder($defaultData)->add('email', EmailType::class)
+                            ->add('name', TextType::class)
+                            ->add('password', PasswordType::class)
+                            ->add('new_password', RepeatedType::class, [
+                                'type'            => PasswordType::class,
+                                'invalid_message' => 'The password fields must match.',
+                                'required'        => false,
+                                'first_options'   => ['label' => 'New Password'],
+                                'second_options'  => ['label' => 'Repeat New Password'],
+                            ])
+                            ->add('submit', SubmitType::class)
+                            ->getForm();
         $form->handleRequest($request);
 
-        $errors = null;
 
         if ($user && $form->isSubmitted() && $form->isValid()) {
             $userFormData = $form->getData();
 
 
-            $user->setName($userFormData->getName());
-            $user->setEmail($userFormData->getEmail());
+            // Check if current password is valid
+            $isCurrentPasswordValid = $encoder->isPasswordValid($user, $userFormData['password']);
+            if ($isCurrentPasswordValid === false) {
+                $this->addFlash(
+                    'error',
+                    'Current password is wrong!'
+                );
+                return $this->redirectToRoute('user_edit');
+            }
 
-            if ($userFormData->getNewPassword()) {
-                $user->setPassword($encoder->encodePassword($user, $userFormData->getNewPassword()));
+
+            $user->setName($userFormData['name']);
+            $user->setEmail($userFormData['email']);
+
+            if (isset($userFormData['new_password']) && $userFormData['new_password']) {
+                $user->setPassword($encoder->encodePassword($user, $userFormData['new_password']));
             }
 
             $em = $this->getDoctrine()->getManager();
             $em->persist($user);
             $em->flush();
 
-            $errors = $validator->validate($user);
-            if (count($errors) > 0) {
-                dd($errors);
-            }
+            $this->addFlash(
+                'success',
+                'Your data has been updated!'
+            );
+
         }
 
-        $this->addFlash(
-            'success',
-            'Your data has been updated!'
-        );
-        return $this->redirectToRoute('user_edit');
+        return $this->render('user/edit.html.twig', [
+            'controller_name' => 'UserController',
+            'user'            => $user,
+            'form'            => $form->createView(),
+        ]);
     }
-
 
     /**
      * @Route("/user/register", name="user_register")
@@ -217,11 +202,11 @@ class UserController extends AbstractController
         $userId = $this->session->get('logged_in_user');
 
         $entityManager = $this->getDoctrine()->getManager();
-        $user = $entityManager->getRepository(User::class)->find($userId);
+        $user          = $entityManager->getRepository(User::class)->find($userId);
 
         if (!$user) {
             throw $this->createNotFoundException(
-                'No user found for id '.$userId
+                'No user found for id ' . $userId
             );
         }
 

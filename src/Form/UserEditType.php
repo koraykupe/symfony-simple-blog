@@ -23,7 +23,6 @@ class UserEditType extends AbstractType
             ->add('new_password', RepeatedType::class, [
                 'type' => PasswordType::class,
                 'invalid_message' => 'The password fields must match.',
-                'options' => ['attr' => ['class' => 'password-field']],
                 'required' => false,
                 'first_options'  => ['label' => 'New Password'],
                 'second_options' => ['label' => 'Repeat New Password'],

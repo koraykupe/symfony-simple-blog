@@ -31,8 +31,6 @@ class User implements UserInterface
      */
     private $password;
 
-    private $newPassword;
-
     /**
      * @ORM\Column(type="string", length=255)
      */
@@ -63,18 +61,6 @@ class User implements UserInterface
     public function setPassword(string $password): self
     {
         $this->password = $password;
-
-        return $this;
-    }
-
-    public function getNewPassword(): ?string
-    {
-        return $this->newPassword;
-    }
-
-    public function setNewPassword(string $newPassword): self
-    {
-        $this->newPassword = $newPassword;
 
         return $this;
     }
