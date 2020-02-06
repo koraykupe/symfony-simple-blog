@@ -14,41 +14,46 @@ use Doctrine\Common\Persistence\ManagerRegistry;
  */
 class UserRepository extends ServiceEntityRepository
 {
+    /**
+     * UserRepository constructor.
+     * @param ManagerRegistry $registry
+     */
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, User::class);
     }
 
-    public function delete() {
+    /**
+     * Deletes a user
+     * @param $id
+     * @return mixed
+     */
+    public function delete($id)
+    {
+        $entityManager = $this->getEntityManager();
 
+        $query = $entityManager->createQuery(
+            'DELETE App\Entity\User u WHERE u.id = :id'
+        )->setParameter('id', $id);
+        return $query->getResult();
     }
 
-    // /**
-    //  * @return User[] Returns an array of User objects
-    //  */
-    /*
-    public function findByExampleField($value)
+    /**
+     * Finds a user by credentials
+     * @param $email
+     * @param $password
+     * @return User[] Returns an array of User objects
+     * @throws \Doctrine\ORM\NonUniqueResultException
+     */
+    public function findByCredentials($email, $password)
     {
         return $this->createQueryBuilder('u')
-            ->andWhere('u.exampleField = :val')
-            ->setParameter('val', $value)
-            ->orderBy('u.id', 'ASC')
-            ->setMaxResults(10)
-            ->getQuery()
-            ->getResult()
-        ;
-    }
-    */
-
-    /*
-    public function findOneBySomeField($value): ?User
-    {
-        return $this->createQueryBuilder('u')
-            ->andWhere('u.exampleField = :val')
-            ->setParameter('val', $value)
+            ->andWhere('u.email = :email')
+            ->andWhere('u.password = :password')
+            ->setParameter('email', $email)
+            ->setParameter('password', $password)
             ->getQuery()
             ->getOneOrNullResult()
         ;
     }
-    */
 }

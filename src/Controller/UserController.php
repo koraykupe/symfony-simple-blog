@@ -3,39 +3,45 @@
 namespace App\Controller;
 
 use App\Entity\User;
-use App\Form\UserEditType;
 use App\Form\UserLoginType;
 use App\Form\UserRegisterType;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Form\Extension\Core\Type\EmailType;
 use Symfony\Component\Form\Extension\Core\Type\PasswordType;
 use Symfony\Component\Form\Extension\Core\Type\RepeatedType;
 use Symfony\Component\Form\Extension\Core\Type\SubmitType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\Session\SessionInterface;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Core\Encoder\UserPasswordEncoderInterface;
-use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 class UserController extends AbstractController
 {
     private $session;
 
+    /**
+     * UserController constructor.
+     * @param SessionInterface $session
+     */
     public function __construct(SessionInterface $session)
     {
         $this->session = $session;
     }
 
     /**
+     * Dashboard page with login form and register link
      * @Route("/", name="login")
-     * @param Request $request
-     * @return \Symfony\Component\HttpFoundation\RedirectResponse|\Symfony\Component\HttpFoundation\Response
+     * @param Request                      $request
+     * @param UserPasswordEncoderInterface $encoder
+     * @return RedirectResponse|Response
      */
     public function index(Request $request, UserPasswordEncoderInterface $encoder)
     {
         $form = $this->createForm(UserLoginType::class);
-
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
@@ -45,17 +51,14 @@ class UserController extends AbstractController
                                    ->getManager()
                                    ->getRepository('App:User');
 
-
             $user            = new User();
             $plainPassword   = $userLoginData->getPassword();
             $encodedPassword = $encoder->encodePassword($user, $plainPassword);
 
-            $user = $userRepository->findOneBy(
-                ['email' => $userLoginData->getEmail(), 'password' => $encodedPassword]
-            );
+            $user = $userRepository->findByCredentials($userLoginData->getEmail(), $encodedPassword);
 
             if ($user) {
-                $this->session->set('logged_in_user', $user->getId());
+                $this->setLoggedInUserId($user->getId());
                 return $this->redirectToRoute('user_edit');
             }
 
@@ -73,38 +76,24 @@ class UserController extends AbstractController
     }
 
     /**
+     * User edit details page
      * @Route("/user/edit", name="user_edit")
      * @param Request                      $request
      * @param UserPasswordEncoderInterface $encoder
-     * @return \Symfony\Component\HttpFoundation\Response
+     * @return Response
+     * @throws \Exception
      */
     public function edit(Request $request, UserPasswordEncoderInterface $encoder)
     {
-        $userId         = $this->session->get('logged_in_user');
-        $userRepository = $this->getDoctrine()
-                               ->getManager()
-                               ->getRepository('App:User');
-        $user           = $userRepository->find($userId);
+        $userRepository = $this->getDoctrine()->getManager()->getRepository('App:User');
+        $user           = $userRepository->find($this->getLoggedInUserId());
 
-        $defaultData = ['name' => $user->getName(), 'email' => $user->getEmail()];
-        $form        = $this->createFormBuilder($defaultData)->add('email', EmailType::class)
-                            ->add('name', TextType::class)
-                            ->add('password', PasswordType::class)
-                            ->add('new_password', RepeatedType::class, [
-                                'type'            => PasswordType::class,
-                                'invalid_message' => 'The password fields must match.',
-                                'required'        => false,
-                                'first_options'   => ['label' => 'New Password'],
-                                'second_options'  => ['label' => 'Repeat New Password'],
-                            ])
-                            ->add('submit', SubmitType::class)
-                            ->getForm();
+        $form = $this->buildUserEditForm($user);
         $form->handleRequest($request);
 
 
         if ($user && $form->isSubmitted() && $form->isValid()) {
             $userFormData = $form->getData();
-
 
             // Check if current password is valid
             $isCurrentPasswordValid = $encoder->isPasswordValid($user, $userFormData['password']);
@@ -115,7 +104,6 @@ class UserController extends AbstractController
                 );
                 return $this->redirectToRoute('user_edit');
             }
-
 
             $user->setName($userFormData['name']);
             $user->setEmail($userFormData['email']);
@@ -143,10 +131,11 @@ class UserController extends AbstractController
     }
 
     /**
+     * Registration form and handling data for new user
      * @Route("/user/register", name="user_register")
      * @param Request                      $request
      * @param UserPasswordEncoderInterface $passwordEncoder
-     * @return \Symfony\Component\HttpFoundation\Response
+     * @return Response
      */
     public function register(
         Request $request,
@@ -168,14 +157,21 @@ class UserController extends AbstractController
 
             $em = $this->getDoctrine()->getManager();
             $em->persist($user);
-            $em->flush();
 
-            $this->session->set('logged_in_user', $user->getId());
+            try {
+                $em->flush();
+                $this->setLoggedInUserId($user->getId());
+                $this->addFlash(
+                    'success',
+                    'Your account has been created successfully.'
+                );
+            } catch (UniqueConstraintViolationException $e) {
+                $this->addFlash(
+                    'errors',
+                    'Given email is already registered.'
+                );
+            }
 
-            $this->addFlash(
-                'success',
-                'Your account has been created successfully.'
-            );
 
             return $this->redirectToRoute('login');
         }
@@ -186,6 +182,7 @@ class UserController extends AbstractController
     }
 
     /**
+     * Deletes all sessions and logs out user
      * @Route("/logout", name="logout")
      */
     public function logout()
@@ -195,23 +192,14 @@ class UserController extends AbstractController
     }
 
     /**
+     * Deletes logged in user from database
      * @Route("/user/delete", name="user_selete")
+     * @throws \Exception
      */
     public function delete()
     {
-        $userId = $this->session->get('logged_in_user');
-
-        $entityManager = $this->getDoctrine()->getManager();
-        $user          = $entityManager->getRepository(User::class)->find($userId);
-
-        if (!$user) {
-            throw $this->createNotFoundException(
-                'No user found for id ' . $userId
-            );
-        }
-
-        $entityManager->remove($user);
-        $entityManager->flush();
+        $userId = $this->getLoggedInUserId();
+        $this->getDoctrine()->getRepository(User::class)->delete($userId);
 
         $this->addFlash(
             'success',
@@ -219,6 +207,52 @@ class UserController extends AbstractController
         );
 
         return $this->logout();
+    }
 
+    /**
+     * Sets user id to session
+     * @param $id
+     * @return mixed
+     */
+    private function setLoggedInUserId($id)
+    {
+        return $this->session->set('logged_in_user', $id);
+    }
+
+    /**
+     * Gets user id from the session
+     * @param $id
+     * @return mixed
+     * @throws \Exception
+     */
+    private function getLoggedInUserId()
+    {
+        if ($this->session->has('logged_in_user')) {
+            return $this->session->get('logged_in_user');
+        }
+
+        throw new \RuntimeException('User not logged in');
+    }
+
+    /**
+     * Builds user edit form from array
+     * @param $user
+     * @return \Symfony\Component\Form\FormInterface
+     */
+    private function buildUserEditForm($user): \Symfony\Component\Form\FormInterface
+    {
+        $defaultData = ['name' => $user->getName(), 'email' => $user->getEmail()];
+        return $this->createFormBuilder($defaultData)->add('email', EmailType::class)
+                    ->add('name', TextType::class)
+                    ->add('password', PasswordType::class)
+                    ->add('new_password', RepeatedType::class, [
+                        'type'            => PasswordType::class,
+                        'invalid_message' => 'The password fields must match.',
+                        'required'        => false,
+                        'first_options'   => ['label' => 'New Password'],
+                        'second_options'  => ['label' => 'Repeat New Password'],
+                    ])
+                    ->add('submit', SubmitType::class)
+                    ->getForm();
     }
 }
