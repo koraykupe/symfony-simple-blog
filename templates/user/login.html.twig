@@ -3,35 +3,47 @@
 {% block title %}Welcome!{% endblock %}
 
 {% block body %}
-<style>
-    .example-wrapper { margin: 1em auto; max-width: 800px; width: 95%; font: 18px/1.5 sans-serif; }
-    .example-wrapper code { background: #F5F5F5; padding: 2px 6px; }
-</style>
+    <style>
+        .border-right {
+            border-right: 1px solid #0a0a0a;
+        }
+    </style>
 
-<div class="example-wrapper">
-    {% for message in app.flashes('success') %}
-        <div class="flash-notice">
-            {{ message }}
+    <div class="container">
+        <div class="row">
+            <div class="col-md mt-3">
+                {% for message in app.flashes('success') %}
+                    <div class="alert alert-secondary" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+
+                {% for message in app.flashes('errors') %}
+                    <div class="alert alert-danger" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
         </div>
-    {% endfor %}
 
-    {% for message in app.flashes('errors') %}
-        <div class="flash-notice">
-            {{ message }}
-        </div>
-    {% endfor %}
-
-    {% if logged_in == true %}
-        <p>You are already logged in.</p>
-        <a href="/user/edit">Edit your details</a>
-        <a href="/user/delete">Delete your account</a>
-        <a href="/logout">Logout</a>
-    {% else %}
-    <h1>Login</h1>
-    {{ form(form) }}
-    <h2>Register</h2>
-    <a href="/user/register">Register</a>
-
-    {% endif %}
-</div>
+        {% if logged_in == true %}
+            <div class="row">
+                <div class="col-md-12">
+                    <p>You are already logged in.</p>
+                    <a class="btn btn-danger" href="/user/delete" role="button">Delete Your Account</a>
+                </div>
+            </div>
+        {% else %}
+            <div class="row d-flex align-items-center mt-5">
+                <div class="col-md-4 border-right">
+                    <h2>Create Account</h2>
+                    <a class="btn btn-primary" href="/user/register" role="button">Register</a>
+                </div>
+                <div class="col-md-8">
+                    <h2>Login</h2>
+                    {{ form(form) }}
+                </div>
+            </div>
+        {% endif %}
+    </div>
 {% endblock %}

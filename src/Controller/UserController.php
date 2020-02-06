@@ -86,7 +86,11 @@ class UserController extends AbstractController
     public function edit(Request $request, UserPasswordEncoderInterface $encoder)
     {
         $userRepository = $this->getDoctrine()->getManager()->getRepository('App:User');
-        $user           = $userRepository->find($this->getLoggedInUserId());
+        try {
+            $user = $userRepository->find($this->getLoggedInUserId());
+        } catch (\Exception $e) {
+            return $this->userNotLoggedIn();
+        }
 
         $form = $this->buildUserEditForm($user);
         $form->handleRequest($request);
@@ -188,6 +192,11 @@ class UserController extends AbstractController
     public function logout()
     {
         $this->session->clear();
+        $this->addFlash(
+            'success',
+            'You logged out.'
+        );
+
         return $this->redirectToRoute('login');
     }
 
@@ -198,7 +207,11 @@ class UserController extends AbstractController
      */
     public function delete()
     {
-        $userId = $this->getLoggedInUserId();
+        try {
+            $userId = $this->getLoggedInUserId();
+        } catch (\Exception $e) {
+            return $this->userNotLoggedIn();
+        }
         $this->getDoctrine()->getRepository(User::class)->delete($userId);
 
         $this->addFlash(
@@ -254,5 +267,18 @@ class UserController extends AbstractController
                     ])
                     ->add('submit', SubmitType::class)
                     ->getForm();
+    }
+
+    /**
+     * Redirect user to login page with a flash message
+     * @return RedirectResponse
+     */
+    private function userNotLoggedIn(): RedirectResponse
+    {
+        $this->addFlash(
+            'errors',
+            'Please login first!'
+        );
+        return $this->redirectToRoute('login');
     }
 }
