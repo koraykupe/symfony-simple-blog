@@ -103,7 +103,7 @@ class UserController extends AbstractController
             $isCurrentPasswordValid = $encoder->isPasswordValid($user, $userFormData['password']);
             if ($isCurrentPasswordValid === false) {
                 $this->addFlash(
-                    'error',
+                    'errors',
                     'Current password is wrong!'
                 );
                 return $this->redirectToRoute('user_edit');
@@ -257,11 +257,12 @@ class UserController extends AbstractController
         $defaultData = ['name' => $user->getName(), 'email' => $user->getEmail()];
         return $this->createFormBuilder($defaultData)->add('email', EmailType::class)
                     ->add('name', TextType::class)
-                    ->add('password', PasswordType::class)
+                    ->add('password', PasswordType::class, ['attr' => ['minlength' => 6]])
                     ->add('new_password', RepeatedType::class, [
                         'type'            => PasswordType::class,
                         'invalid_message' => 'The password fields must match.',
                         'required'        => false,
+                        'options'         => ['attr' => ['minlength' => 6]],
                         'first_options'   => ['label' => 'New Password'],
                         'second_options'  => ['label' => 'Repeat New Password'],
                     ])
