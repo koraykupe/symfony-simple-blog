@@ -12,7 +12,6 @@ Setup your database configuration (refer to [Symfony config](https://symfony.com
 ```
 
 ## Notes
-- I didn’t fully copy the wireframe, but created another nice theme
 - I didn’t user Symfony’s built in authentication mechanism since purpose of the project is showing usage of CRUD actions. Instead, I just used UserPasswordEncoderInterface to hash plain passwords to secure them safely in DB.
 - Annotations are used for Doctrine, Routes, Forms and Validations.
 - Login mechanism is based on Symfony sessions. It may not be enough for a real authentication system.
