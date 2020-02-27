@@ -1,6 +1,4 @@
-# Basic User CRUD for WebdesignTilburg
-
-This project is developed by Koray Kupe for WebDesignTilburg’s job interview process.
+# Basic User CRUD with Symfony
 
 ## Installation
 
@@ -20,7 +18,7 @@ Setup your database configuration (refer to [Symfony config](https://symfony.com
 - Login mechanism is based on Symfony sessions. It may not be enough for a real authentication system.
 - Bootstrap 4 is used in general layout
 - No unit tests are written because it was not a requirement
-- Navigation menu items could be shown/hidden by user status. I didn’t spend time on that
+- Navigation menu items could be shown/hidden by user status. I didn’t spend time on that.
 - Flash sessions are used for most error/success messages
 - UserRepository has 2 custom methods to make Doctrine actions are more developer friendly
 - User login and registration forms are bind to the User entity while user edit is a custom form since it has new password fields
